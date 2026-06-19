@@ -27,22 +27,12 @@ jwt_secrets:
     key: "https://dev-ovmjlc4xr45esio2.us.auth0.com/"
     algorithm: RS256
     rsa_public_key: |
-      -----BEGIN CERTIFICATE-----
-      MIIDHTCCAgWgAwIBAgIJSJsA03fXRyKfMA0GCSqGSIb3DQEBCwUAMCwxKjAoBgNV
-      BAMTIWRldi1vdm1qbGM0eHI0NWVzaW8yLnVzLmF1dGgwLmNvbTAeFw0yNjA2MTkx
-      MzQxMzdaFw00MDAyMjYxMzQxMzdaMCwxKjAoBgNVBAMTIWRldi1vdm1qbGM0eHI0
-      NWVzaW8yLnVzLmF1dGgwLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC
-      ggEBAK39vsryiQaG0CIO4hQEhnwNlwlEl+g5+dxLQ428YLrhGCLlaMLLiPS6kfh8
-      3lK36ZZkeUxBvryX66kx4jpQTHRYC9VvvsVX0XJsYTai0/gabWlAKeFbC1JNCV4O
-      7CFCPJ++sz3FLdjYXSP0QNBJskSbLinMDQytu7S5MbSCaMQw4lX79rI0Tm28Wvf+
-      cpCnDe1p+ODRyM04xgCQdNPZ1ORLldkdb/Nf/tX0nHweMSbXKKwcCaLaHV5YysJB
-      GjRpJjikrIdqUROE8nS9BdUDOfeqE0S8Aj5E9fp+W2dg/jGQ4K/6h5MGNmRE9dbr
-      yDawT3gCjgMRGvXou73GhB/eJd8CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAd
-      BgNVHQ4EFgQUy0ucyKxfaER+6KuQOeJuB3s+5IowDgYDVR0PAQH/BAQDAgKEMA0G
-      CSqGSIb3DQEBCwUAA4IBAQB3lKnvUnuQojXgtOCt6kYAramfGF1cvjwoL6VT5iLJ
-      SO5Gh9i0954YpU7m7qlYLyryNYwodtgG9Z9p9Wb+rz9BUMlsDH0xbG3yDqJSFQ+t
-      kmxMXyJZzwlUKI5YucpQMbNcwuB7NpDQYTe8c5XCgSRcfvdT/VRkeT5j8Jzv404q
-      OzqkA9b2f2k+wkHfAqTj2u6e0IBIeCZiPGg8MceUmClbzpCn+lnIbEKyw9s+Hv6l
-      3Tx/rgm+ydVQlYeFyx/dyQeDAA4PlE04RNIhQk2Rno9SZKk0BNIOFTaz2q7Wu0j0
-      BuPNVmz2blgm1o+3OpPiRkcDeNp5e60kQFbAJOV2OZjA
-      -----END CERTIFICATE-----
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArf2+yvKJBobQIg7iFASG
+      fA2XCUSX6Dn53EtDjbxguuEYIuVowsuI9LqR+HzeUrfplmR5TEG+vJfrqTHiOlBM
+      dFgL1W++xVfRcmxhNqLT+BptaUAp4VsLUk0JXg7sIUI8n76zPcUt2NhdI/RA0Emy
+      RJsuKcwNDK27tLkxtIJoxDDiVfv2sjRObbxa9/5ykKcN7Wn44NHIzTjGAJB009nU
+      5EuV2R1v81/+1fScfB4xJtcorBwJotodXljKwkEaNGkmOKSsh2pRE4TydL0F1QM5
+      96oTRLwCPkT1+n5bZ2D+MZDgr/qHkwY2ZET11uvINrBPeAKOAxEa9ei7vcaEH94l
+      3wIDAQAB
+      -----END PUBLIC KEY-----
