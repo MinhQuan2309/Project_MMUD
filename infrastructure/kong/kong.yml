@@ -1,5 +1,15 @@
 _format_version: "3.0"
 
-services: []
-routes: []
-plugins: []
+services:
+  - name: dummy-backend
+    url: http://httpbin.org # Tạm thời trỏ tới API test ảo, sau này Phước sẽ tự đổi thành Backend thật
+    routes:
+      - name: secure-route
+        paths:
+          - /api/v1/secure
+
+plugins:
+  - name: jwt
+    config:
+      claims_to_verify:
+        - exp
