@@ -20,7 +20,7 @@ APP_NAME = "billing-service"
 def get_secrets_from_vault():
     print("🔒 Đang gõ cửa Két sắt Vault để lấy Secret cho Billing...")
     try:
-        client = hvac.Client(url='http://vault:8200', token='root-token-mmud')
+        client = hvac.Client(url='http://vault-server:8200', token='root-token-mmud')
         
         if not client.is_authenticated():
             print("❌ Thẻ từ Vault không hợp lệ!")
