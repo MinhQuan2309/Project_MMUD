@@ -1,30 +1,30 @@
 import os
 import sys
 import time
+import uuid # MỚI: Dùng để sinh ID ngẫu nhiên chống BOLA
 from typing import Optional
 
 import hvac  # Thư viện gọi Vault (DevSecOps)
 import jwt
 from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
-from passlib.context import CryptContext
 from pydantic import BaseModel, Field
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
+# ĐÃ XÓA: passlib.context vì Auth0 đã lo việc xác thực mật khẩu
+
 # =====================================================================
-# HÀM KẾT NỐI HASHICORP VAULT (PHƯỚC & QUÂN PHỐI HỢP)
+# HÀM KẾT NỐI HASHICORP VAULT
 # =====================================================================
 def get_jwt_secret_from_vault():
     print("🔒 Đang gõ cửa Két sắt Vault để lấy JWT_SECRET...")
     try:
-        # Gọi sang container Vault trong cùng mạng Docker
         client = hvac.Client(url='http://vault:8200', token='root-token-mmud')
         
         if not client.is_authenticated():
             print("❌ Thẻ từ Vault không hợp lệ!")
             sys.exit(1)
 
-        # Lấy dữ liệu từ két sắt tên là 'user-service'
         response = client.secrets.kv.v2.read_secret_version(path='user-service')
         secrets = response['data']['data']
         
@@ -37,7 +37,6 @@ def get_jwt_secret_from_vault():
         return jwt_secret
         
     except Exception as e:
-        # Fallback: Nếu Vault sập hoặc chưa chạy, báo lỗi và thoát app
         print(f"❌ Không kết nối được Vault. Lỗi: {e}")
         print("⚠️ Ứng dụng từ chối khởi động vì lý do bảo mật (Thiếu Secret)!")
         sys.exit(1)
@@ -47,16 +46,13 @@ def get_jwt_secret_from_vault():
 # =====================================================================
 APP_NAME = "user-service"
 
-# Gọi hàm lấy Secret thật từ Vault thay vì đọc file .env
 JWT_SECRET = get_jwt_secret_from_vault()
 JWT_ALG = os.getenv("JWT_ALG", "HS256")
 JWT_EXPIRE_SECONDS = int(os.getenv("JWT_EXPIRE_SECONDS", "3600"))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 app = FastAPI(
     title="User Service",
-    description="Đăng ký, đăng nhập và cấp JWT cho hệ thống Cloud API Security Project.",
+    description="Cấp đổi Internal JWT (Token Exchange) cho hệ thống Cloud API Security Project.",
     version="1.0.0",
 )
 
@@ -71,30 +67,8 @@ REQUEST_LATENCY = Histogram(
     ["method", "endpoint"],
 )
 
-# Demo in-memory DB. Khi làm thật có thể thay bằng PostgreSQL.
-users = {
-    "phuoc": {
-        "user_id": "u-phuoc",
-        "username": "phuoc",
-        "password_hash": pwd_context.hash("Phuoc@123"),
-        "role": "user",
-    },
-    "admin": {
-        "user_id": "u-admin",
-        "username": "admin",
-        "password_hash": pwd_context.hash("Admin@123"),
-        "role": "admin",
-    },
-}
-
-class RegisterRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=32)
-    password: str = Field(min_length=8, max_length=128)
-    role: str = Field(default="user", pattern="^(user|admin)$")
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
+# In-memory DB lưu thông tin người dùng nội bộ
+users = {}
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -119,10 +93,13 @@ def health():
 def metrics():
     return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
+# =====================================================================
+# LÕI CẤP PHÁT THẺ NỘI BỘ (INTERNAL JWT)
+# =====================================================================
 def create_token(user: dict) -> str:
     now = int(time.time())
     payload = {
-        "sub": user["user_id"],
+        "sub": user["user_id"], # Đã sử dụng UUID không thể đoán mò
         "username": user["username"],
         "role": user["role"],
         "iat": now,
@@ -132,41 +109,55 @@ def create_token(user: dict) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
-@app.post("/register", status_code=status.HTTP_201_CREATED)
-def register(req: RegisterRequest):
-    username = req.username.lower().strip()
-    if username in users:
-        raise HTTPException(status_code=409, detail="Username already exists")
-    users[username] = {
-        "user_id": f"u-{username}",
-        "username": username,
-        "password_hash": pwd_context.hash(req.password),
-        "role": req.role,
-    }
-    return {
-        "message": "User created",
-        "user_id": users[username]["user_id"],
-        "username": username,
-        "role": req.role,
-    }
+# =====================================================================
+# CHỨC NĂNG ĐỔI THẺ (TOKEN EXCHANGE) - THAY THẾ REGISTER/LOGIN
+# =====================================================================
+@app.post("/exchange", response_model=TokenResponse)
+def exchange_token(authorization: Optional[str] = Header(default=None)):
+    """
+    Endpoint này nhận External JWT của Auth0 (đã được Kong xác thực).
+    Trích xuất thông tin, tạo hồ sơ nội bộ, và trả về Internal JWT (HS256).
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Thiếu thẻ Auth0")
 
-@app.post("/login", response_model=TokenResponse)
-def login(req: LoginRequest):
-    username = req.username.lower().strip()
-    user = users.get(username)
-    if not user or not pwd_context.verify(req.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    token = create_token(user)
-    return TokenResponse(access_token=token, expires_in=JWT_EXPIRE_SECONDS)
+    ext_token = authorization.removeprefix("Bearer ").strip()
 
+    try:
+        # Giải mã lấy thông tin Auth0 (Kong Gateway ở vòng ngoài đã verify chữ ký số rồi)
+        ext_payload = jwt.decode(ext_token, options={"verify_signature": False})
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=400, detail="Định dạng token Auth0 không hợp lệ")
+
+    auth0_sub = ext_payload.get("sub")
+    if not auth0_sub:
+        raise HTTPException(status_code=400, detail="Auth0 Token thiếu trường 'sub'")
+
+    # Đăng ký tự động (Upsert) vào hệ thống nội bộ nếu là user mới
+    if auth0_sub not in users:
+        users[auth0_sub] = {
+            "user_id": str(uuid.uuid4()), # FIX BOLA: Cấp Opaque ID cực kỳ phức tạp
+            "username": ext_payload.get("email", f"user_{auth0_sub[-5:]}"), 
+            "role": "user"
+        }
+
+    user = users[auth0_sub]
+
+    # In ra Thẻ từ nội bộ
+    internal_token = create_token(user)
+    return TokenResponse(access_token=internal_token, expires_in=JWT_EXPIRE_SECONDS)
+
+# =====================================================================
+# KIỂM TRA THẺ NỘI BỘ 
+# =====================================================================
 @app.get("/me")
 def me(authorization: Optional[str] = Header(default=None)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid Authorization scheme")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Thiếu thẻ nội bộ")
+    
     token = authorization.removeprefix("Bearer ").strip()
     try:
+        # Giải mã và VERIFY chữ ký đối xứng của hệ thống nội bộ
         payload = jwt.decode(
             token,
             JWT_SECRET,
@@ -175,5 +166,6 @@ def me(authorization: Optional[str] = Header(default=None)):
             issuer="cloud-api-security-project",
         )
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(status_code=401, detail="Thẻ nội bộ không hợp lệ hoặc đã hết hạn")
+    
     return {"user": payload}
