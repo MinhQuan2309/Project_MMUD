@@ -1,104 +1,100 @@
 version: "3.8"
 
 networks:
-api-security-net:
-driver: bridge
+  api-security-net:
+    driver: bridge
 
 services:
 
-# --- QUÂN: KONG GATEWAY ---
+  # --- QUÂN: KONG GATEWAY ---
+  kong:
+    image: kong:3.6-ubuntu
+    container_name: kong-gateway
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: "/usr/local/kong/declarative/kong.yml"
+      KONG_PROXY_ACCESS_LOG: "/dev/stdout"
+      KONG_ADMIN_ACCESS_LOG: "/dev/stdout"
+      KONG_PROXY_ERROR_LOG: "/dev/stderr"
+      KONG_ADMIN_ERROR_LOG: "/dev/stderr"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
+    ports:
+      - "8000:8000"   # Kong proxy: client gọi API qua cổng này
+      - "8443:8443"
+      - "8001:8001"   # Kong admin
+      - "8444:8444"
+    volumes:
+      - ./kong/kong.yml:/usr/local/kong/declarative/kong.yml
+    depends_on:
+      - user-service
+      - resource-service
+      - billing-service
+    networks:
+      - api-security-net
 
-kong:
-image: kong:3.6-ubuntu
-container_name: kong-gateway
-environment:
-KONG_DATABASE: "off"
-KONG_DECLARATIVE_CONFIG: "/usr/local/kong/declarative/kong.yml"
-KONG_PROXY_ACCESS_LOG: "/dev/stdout"
-KONG_ADMIN_ACCESS_LOG: "/dev/stdout"
-KONG_PROXY_ERROR_LOG: "/dev/stderr"
-KONG_ADMIN_ERROR_LOG: "/dev/stderr"
-KONG_ADMIN_LISTEN: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
-ports:
-- "8000:8000"   # Kong proxy: client gọi API qua cổng này
-- "8443:8443"
-- "8001:8001"   # Kong admin
-- "8444:8444"
-volumes:
-- ./kong/kong.yml:/usr/local/kong/declarative/kong.yml
-depends_on:
-- user-service
-- resource-service
-- billing-service
-networks:
-- api-security-net
+  # --- PHƯỚC: MICROSERVICES ---
+  user-service:
+    build:
+      context: ../microservices/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    restart: always
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: ${JWT_ALG:-HS256}
+      JWT_EXPIRE_SECONDS: ${JWT_EXPIRE_SECONDS:-3600}
+    networks:
+      - api-security-net
+    # Không expose ports ra ngoài.
+    # Kong sẽ gọi nội bộ qua http://user-service:8000
 
-# --- PHƯỚC: MICROSERVICES ---
+  resource-service:
+    build:
+      context: ../microservices/resource-service
+      dockerfile: Dockerfile
+    container_name: resource-service
+    restart: always
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: ${JWT_ALG:-HS256}
+    depends_on:
+      - user-service
+    networks:
+      - api-security-net
+    # Kong gọi nội bộ qua http://resource-service:8000
 
-user-service:
-build:
-context: ../microservices/user-service
-dockerfile: Dockerfile
-container_name: user-service
-restart: always
-environment:
-JWT_SECRET: ${JWT_SECRET}
-JWT_ALG: ${JWT_ALG:-HS256}
-JWT_EXPIRE_SECONDS: ${JWT_EXPIRE_SECONDS:-3600}
-networks:
-- api-security-net
-# Không expose ports ra ngoài.
-# Kong sẽ gọi nội bộ qua http://user-service:8000
+  billing-service:
+    build:
+      context: ../microservices/billing-service
+      dockerfile: Dockerfile
+    container_name: billing-service
+    restart: always
+    environment:
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      WEBHOOK_TOLERANCE_SECONDS: ${WEBHOOK_TOLERANCE_SECONDS:-300}
+    networks:
+      - api-security-net
+    # Kong gọi nội bộ qua http://billing-service:8000
 
-resource-service:
-build:
-context: ../microservices/resource-service
-dockerfile: Dockerfile
-container_name: resource-service
-restart: always
-environment:
-JWT_SECRET: ${JWT_SECRET}
-JWT_ALG: ${JWT_ALG:-HS256}
-depends_on:
-- user-service
-networks:
-- api-security-net
-# Kong gọi nội bộ qua http://resource-service:8000
+  # --- QUÂN + PHƯỚC: VAULT ---
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: vault-server
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "root-token-mmud"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - api-security-net
 
-billing-service:
-build:
-context: ../microservices/billing-service
-dockerfile: Dockerfile
-container_name: billing-service
-restart: always
-environment:
-WEBHOOK_SECRET: ${WEBHOOK_SECRET}
-WEBHOOK_TOLERANCE_SECONDS: ${WEBHOOK_TOLERANCE_SECONDS:-300}
-networks:
-- api-security-net
-# Kong gọi nội bộ qua http://billing-service:8000
-
-# --- QUÂN + PHƯỚC: VAULT ---
-
-vault:
-image: hashicorp/vault:1.15
-container_name: vault-server
-ports:
-- "8200:8200"
-environment:
-VAULT_DEV_ROOT_TOKEN_ID: "root-token-mmud"
-VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-cap_add:
-- IPC_LOCK
-networks:
-- api-security-net
-
-# --- DUY: MONITORING ---
-
-prometheus:
-image: prom/prometheus:latest
-container_name: prometheus
-ports:
-- "9090:9090"
-networks:
-- api-security-net
+  # --- DUY: MONITORING ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - api-security-net
