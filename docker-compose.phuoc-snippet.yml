@@ -1,0 +1,38 @@
+# Có thể copy block này vào infrastructure/docker-compose.yml của nhóm.
+services:
+  user-service:
+    build: ../microservices/user-service
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: ${JWT_ALG:-HS256}
+      JWT_EXPIRE_SECONDS: ${JWT_EXPIRE_SECONDS:-3600}
+    ports:
+      - "8001:8000"
+    networks:
+      - internal-net
+
+  resource-service:
+    build: ../microservices/resource-service
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: ${JWT_ALG:-HS256}
+    ports:
+      - "8002:8000"
+    depends_on:
+      - user-service
+    networks:
+      - internal-net
+
+  billing-service:
+    build: ../microservices/billing-service
+    environment:
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      WEBHOOK_TOLERANCE_SECONDS: ${WEBHOOK_TOLERANCE_SECONDS:-300}
+    ports:
+      - "8003:8000"
+    networks:
+      - internal-net
+
+networks:
+  internal-net:
+    driver: bridge
