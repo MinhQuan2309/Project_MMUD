@@ -1,0 +1,9 @@
+_format_version: "3.0"
+
+services:
+  - name: backend
+    url: http://backend:3000
+    routes:
+      - name: api
+        paths:
+          - /api

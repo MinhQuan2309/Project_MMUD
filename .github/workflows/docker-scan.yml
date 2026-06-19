@@ -1,0 +1,43 @@
+name: 🐳 Container Build & Vulnerability Scan
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'microservices/**' # Chỉ chạy khi có thay đổi trong code microservices
+  pull_request:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'microservices/**'
+
+jobs:
+  container-security:
+    name: 🛡️ Scan Service
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Nếu 1 service lỗi, các service khác vẫn tiếp tục quét
+      matrix:
+        # Tự động lặp qua đúng tên 3 thư mục microservices của Phước
+        service: [user-service, resource-service, billing-service]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Build thử nghiệm Docker Image cục bộ dựa theo cấu trúc cây thư mục
+      - name: Build Docker Image for ${{ matrix.service }}
+        run: |
+          docker build \
+            -t mmud-${{ matrix.service }}:${{ github.sha }} \
+            ./microservices/${{ matrix.service }}
+
+      # Dùng Trivy để quét lỗ hổng CVE trong các thư viện (OS, Package) của Image vừa build
+      - name: Run Trivy Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mmud-${{ matrix.service }}:${{ github.sha }}'
+          format: 'table'
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH' # Tập trung vào các lỗi nghiêm trọng và cao
+          exit-code: '1' # Đánh "BÁO ĐỎ" (Fail) pipeline nếu phát hiện lỗi CRITICAL/HIGH để Phước vào vá
+          ignore-unfixed: true # Bỏ qua các lỗi chưa có bản vá từ nhà phát hành để đỡ loãng báo cáo
