@@ -2,21 +2,59 @@ import hashlib
 import hmac
 import json
 import os
+import sys
 import time
 from typing import Optional
 
+import hvac  # MỚI: Thư viện gọi Vault
+import jwt   # MỚI: Thư viện giải mã JWT
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
-
 APP_NAME = "billing-service"
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "dev-webhook-secret-change-me")
+
+# =====================================================================
+# HÀM KẾT NỐI HASHICORP VAULT
+# =====================================================================
+def get_secrets_from_vault():
+    print("🔒 Đang gõ cửa Két sắt Vault để lấy Secret cho Billing...")
+    try:
+        client = hvac.Client(url='http://vault:8200', token='root-token-mmud')
+        
+        if not client.is_authenticated():
+            print("❌ Thẻ từ Vault không hợp lệ!")
+            sys.exit(1)
+
+        # Lấy dữ liệu từ két sắt dành riêng cho billing-service
+        response = client.secrets.kv.v2.read_secret_version(path='billing-service')
+        secrets = response['data']['data']
+        
+        webhook_secret = secrets.get("WEBHOOK_SECRET")
+        jwt_secret = secrets.get("JWT_SECRET") # Cần chìa khóa này để soi Thẻ Nội Bộ
+        
+        if not webhook_secret or not jwt_secret:
+            print("❌ Vault mở thành công nhưng thiếu WEBHOOK_SECRET hoặc JWT_SECRET!")
+            sys.exit(1)
+            
+        print("✅ Đã lấy thành công Secrets từ Vault! Tuyệt đối an toàn.")
+        return webhook_secret, jwt_secret
+        
+    except Exception as e:
+        print(f"❌ Không kết nối được Vault. Lỗi: {e}")
+        sys.exit(1)
+
+# =====================================================================
+# KHỞI TẠO BIẾN MÔI TRƯỜNG & APP
+# =====================================================================
+# Lấy chìa khóa thật từ Vault
+WEBHOOK_SECRET, JWT_SECRET = get_secrets_from_vault()
 WEBHOOK_TOLERANCE_SECONDS = int(os.getenv("WEBHOOK_TOLERANCE_SECONDS", "300"))
+JWT_ALG = os.getenv("JWT_ALG", "HS256")
 
 app = FastAPI(
     title="Billing Service",
-    description="Dịch vụ giả lập nhận webhook thanh toán có xác thực chữ ký HMAC.",
+    description="Dịch vụ giả lập nhận webhook thanh toán có xác thực chữ ký HMAC và JWT.",
     version="1.0.0",
 )
 
@@ -34,7 +72,6 @@ REQUEST_LATENCY = Histogram(
 processed_webhook_ids = set()
 payments = []
 
-
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
     endpoint = request.url.path
@@ -45,16 +82,13 @@ async def metrics_middleware(request: Request, call_next):
     response.headers["X-Service-Name"] = APP_NAME
     return response
 
-
 @app.get("/health")
 def health():
     return {"service": APP_NAME, "status": "ok"}
 
-
 @app.get("/metrics")
 def metrics():
     return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
 
 def verify_webhook_signature(raw_body: bytes, timestamp: str, signature: str) -> None:
     try:
@@ -76,7 +110,6 @@ def verify_webhook_signature(raw_body: bytes, timestamp: str, signature: str) ->
     if not hmac.compare_digest(expected, signature):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
-
 @app.post("/webhooks/payment")
 async def payment_webhook(
     request: Request,
@@ -84,6 +117,10 @@ async def payment_webhook(
     x_signature: Optional[str] = Header(default=None),
     x_webhook_id: Optional[str] = Header(default=None),
 ):
+    """
+    Endpoint này KHÔNG cần JWT vì nó nhận tín hiệu từ đối tác bên ngoài (VD: VNPay, Momo).
+    Bảo mật bằng HMAC Signature.
+    """
     if not x_timestamp or not x_signature or not x_webhook_id:
         raise HTTPException(
             status_code=400,
@@ -110,7 +147,25 @@ async def payment_webhook(
 
     return {"message": "Payment webhook accepted", "payment": payload}
 
-
 @app.get("/payments")
-def list_payments():
-    return {"items": payments}
+def list_payments(authorization: Optional[str] = Header(default=None)):
+    """
+    MỚI: Endpoint này chứa dữ liệu nhạy cảm, BẮT BUỘC phải có Thẻ Nội Bộ mới được xem.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Thiếu thẻ nội bộ")
+    
+    token = authorization.removeprefix("Bearer ").strip()
+    try:
+        # Giải mã và VERIFY chữ ký đối xứng của hệ thống nội bộ
+        payload = jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=[JWT_ALG],
+            audience="internal-api",
+            issuer="cloud-api-security-project",
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Thẻ nội bộ không hợp lệ hoặc đã hết hạn")
+        
+    return {"items": payments, "requested_by_user_id": payload.get("sub")}
