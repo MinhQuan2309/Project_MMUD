@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+PyJWT
+passlib[bcrypt]
+python-multipart
+prometheus-client
