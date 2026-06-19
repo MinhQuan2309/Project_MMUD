@@ -1,12 +1,32 @@
 _format_version: "3.0"
 
 services:
-  - name: dummy-backend
-    url: http://httpbin.org
+  # 1. ĐỊNH TUYẾN VÀO USER SERVICE (Nơi có quầy Lễ tân cấp/đổi thẻ)
+  - name: user-service
+    url: http://user-service:8000
     routes:
-      - name: secure-route
+      - name: user-route
         paths:
-          - /api/v1/secure
+          - /api/v1/users
+        strip_path: true
+
+  # 2. ĐỊNH TUYẾN VÀO RESOURCE SERVICE (Phòng dữ liệu)
+  - name: resource-service
+    url: http://resource-service:8000
+    routes:
+      - name: resource-route
+        paths:
+          - /api/v1/resources
+        strip_path: true
+
+  # 3. ĐỊNH TUYẾN VÀO BILLING SERVICE (Phòng thanh toán)
+  - name: billing-service
+    url: http://billing-service:8000
+    routes:
+      - name: billing-route
+        paths:
+          - /api/v1/billing
+        strip_path: true
 
 plugins:
   - name: jwt
@@ -16,10 +36,9 @@ plugins:
 
   - name: rate-limiting
     config:
-      minute: 100 # Nâng lên 100 để Duy chạy DAST test không bị nghẽn
+      minute: 100
       policy: local
 
-  # BỔ SUNG CORS THEO PHÂN CÔNG NỘI BỘ
   - name: cors
     config:
       origins:
@@ -37,9 +56,10 @@ plugins:
 
 consumers:
   - username: auth0-auth-server
+  - username: internal-system # MỚI: Khai báo thêm "nhân sự" nội bộ
 
-# ĐÃ SỬA LỖI: Tách jwt_secrets ra thành một khối ngang hàng, liên kết bằng trường 'consumer'
 jwt_secrets:
+  # CHÌA KHÓA 1: Dùng để xác thực thẻ Auth0 (Cửa vòng ngoài)
   - consumer: auth0-auth-server
     key: "https://dev-ovmjlc4xr45esio2.us.auth0.com/"
     algorithm: RS256
@@ -53,3 +73,9 @@ jwt_secrets:
       96oTRLwCPkT1+n5bZ2D+MZDgr/qHkwY2ZET11uvINrBPeAKOAxEa9ei7vcaEH94l
       3wIDAQAB
       -----END PUBLIC KEY-----
+
+  # CHÌA KHÓA 2 (MỚI): Dùng để xác thực thẻ Nội bộ do code Phước cấp
+  - consumer: internal-system
+    key: "cloud-api-security-project" # Phải khớp y chang trường 'iss' trong code Python
+    algorithm: HS256
+    secret: "super-secret-jwt-key-for-mmud-project-2026" # Phải khớp với file .env
