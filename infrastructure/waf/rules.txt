@@ -1,0 +1,64 @@
+# =========================================================================
+# PROJECT_MMUD - WEB APPLICATION FIREWALL (WAF) CUSTOM RULES
+# Đội ngũ phát triển: Nguyễn Minh Quân (Infrastructure & WAF Owner)
+# Cấu hình các quy tắc chặn tầng Layer 7 (OWASP Top 10)
+# =========================================================================
+
+# -------------------------------------------------------------------------
+# RULE CHẶN 1: CHẶN CÁC CÔNG CỤ DÒ QUÉT TỰ ĐỘNG (Anti-Scanner / Bot Detection)
+# Mục tiêu: Chặn đứng công cụ OWASP ZAP hoặc sqlmap khi Duy chạy quét tự động
+# -------------------------------------------------------------------------
+SecRule REQUEST_HEADERS:User-Agent "(?i:owasp-zap|sqlmap|nikto|dirbuster|nmap|netsparker)" \
+    "id:100001, \
+    phase:1, \
+    deny, \
+    status:403, \
+    log, \
+    msg:'[WAF WARNING] Chặn công cụ rà quét lỗ hổng tự động bảo mật'"
+
+# -------------------------------------------------------------------------
+# RULE CHẶN 2: CHỐNG SQL INJECTION (SQLi Mitigation)
+# Mục tiêu: Phát hiện các ký tự độc hại thường dùng để hack database trong URL/Body
+# -------------------------------------------------------------------------
+SecRule REQUEST_COOKIES|REQUEST_COOKIES_NAMES|REQUEST_FILENAME|ARGS "(?i:UNION.+SELECT|SELECT.+FROM|INSERT.+INTO|DROP.+TABLE|'--|--)" \
+    "id:100002, \
+    phase:2, \
+    deny, \
+    status:403, \
+    log, \
+    msg:'[WAF ALERT] Phát hiện hành vi tấn công SQL Injection vào hệ thống'"
+
+# -------------------------------------------------------------------------
+# RULE CHẶN 3: CHỐNG CROSS-SITE SCRIPTING (XSS Mitigation)
+# Mục tiêu: Chặn các script độc hại chèn vào form hoặc query string
+# -------------------------------------------------------------------------
+SecRule ARGS|REQUEST_HEADERS "(?i:<script.*?>|javascript:|onerror=|onload=)" \
+    "id:100003, \
+    phase:2, \
+    deny, \
+    status:403, \
+    log, \
+    msg:'[WAF ALERT] Phát hiện và ngăn chặn mã độc Cross-Site Scripting (XSS)'"
+
+# -------------------------------------------------------------------------
+# RULE CHẶN 4: CHỐNG THAO TÁC TẬP TIN TRÊN SERVER (Path Traversal)
+# Mục tiêu: Ngăn chặn hacker đọc trộm file hệ thống (như /etc/passwd)
+# -------------------------------------------------------------------------
+SecRule ARGS|REQUEST_FILENAME "(?i:\.\./\.\./|\.\.\\\.\.\\|/etc/passwd|boot\.ini)" \
+    "id:100004, \
+    phase:2, \
+    deny, \
+    status:403, \
+    log, \
+    msg:'[WAF ALERT] Chặn hành vi truy cập trái phép file hệ thống (Path Traversal)'"
+
+# -------------------------------------------------------------------------
+# RULE CHẶN 5: CHỐNG BOLA & TOKEN THEFT (IDOR/BOLA Mitigation)
+# Mục tiêu: Giới hạn định dạng ID truyền lên, bắt buộc tuân theo UUID/Integer dạng chuẩn
+# -------------------------------------------------------------------------
+SecRule ARGS:user_id "!^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" \
+    "id:100005, \
+    phase:2, \
+    pass, \
+    log, \
+    msg:'[WAF INFO] Kiểm tra định dạng ID phòng chống tấn công thay đổi ID (BOLA)'"
