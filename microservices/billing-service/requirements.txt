@@ -4,5 +4,4 @@ PyJWT
 passlib[bcrypt]
 python-multipart
 prometheus-client
-hvac==2.1.2
-PyJWT==2.8.0
+hvac
