@@ -2,7 +2,7 @@ _format_version: "3.0"
 
 services:
   - name: dummy-backend
-    url: http://httpbin.org # Tạm thời trỏ tới API test ảo, sau này Phước sẽ tự đổi thành Backend thật
+    url: http://httpbin.org
     routes:
       - name: secure-route
         paths:
@@ -13,3 +13,15 @@ plugins:
     config:
       claims_to_verify:
         - exp
+
+# Thêm đoạn cấu hình Consumer dưới đây vào file của bạn
+consumers:
+  - username: auth0-auth-server
+    jwt_secrets:
+      - key: "https://dev-ovmjlc4xr45esio2.us.auth0.com/" # CHÍNH XÁC là link Domain Auth0 của bạn (phải có dấu / ở cuối)
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0C9k...
+          [ĐÂY LÀ NƠI CHÚNG TA SẼ DÁN KHÓA CÔNG KHAI CỦA BẠN VÀO]
+          -----END PUBLIC KEY-----
