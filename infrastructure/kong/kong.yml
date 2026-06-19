@@ -13,10 +13,27 @@ plugins:
     config:
       claims_to_verify:
         - exp
+
   - name: rate-limiting
     config:
-      minute: 5
+      minute: 100 # Nâng lên 100 để Duy chạy DAST test không bị nghẽn
       policy: local
+
+  # BỔ SUNG CORS THEO PHÂN CÔNG NỘI BỘ
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Type
+        - Authorization
 
 consumers:
   - username: auth0-auth-server
