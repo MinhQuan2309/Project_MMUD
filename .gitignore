@@ -1,4 +1,5 @@
 .env
+security/vault/vault-token.txt
 security/certs/generated/
 *.key
 *.csr
