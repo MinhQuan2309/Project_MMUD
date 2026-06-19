@@ -1,13 +1,19 @@
 # Có thể copy block này vào infrastructure/docker-compose.yml của nhóm.
 services:
   user-service:
-    build: ../microservices/user-service
+    build: ./microservices/user-service
     environment:
-      JWT_SECRET: ${JWT_SECRET}
+      VAULT_ADDR: http://vault:8200
+      VAULT_SECRET_MOUNT: secret
+      VAULT_SECRET_PATH: project-mmud
       JWT_ALG: ${JWT_ALG:-HS256}
       JWT_EXPIRE_SECONDS: ${JWT_EXPIRE_SECONDS:-3600}
+    secrets:
+      - vault_token
     ports:
       - "8001:8000"
+    depends_on:
+      - vault
     networks:
       - internal-net
 
@@ -32,7 +38,27 @@ services:
       - "8003:8000"
     networks:
       - internal-net
+   
+   vault:
+    image: hashicorp/vault:latest
+    container_name: project-mmud-vault
+    ports:
+      - "8200:8200"
+    volumes:
+      - ./security/vault/config.hcl:/vault/config/config.hcl
+      - vault-data:/vault/file
+    cap_add:
+      - IPC_LOCK
+    command: vault server -config=/vault/config/config.hcl
 
 networks:
   internal-net:
     driver: bridge
+
+  secrets:
+  vault_token:
+    file: ./security/vault/vault-token.txt
+
+volumes:
+  vault-data:
+
