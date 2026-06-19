@@ -1,0 +1,5 @@
+.env
+security/certs/generated/
+*.key
+*.csr
+*.srl
