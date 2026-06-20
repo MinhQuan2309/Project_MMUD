@@ -11,11 +11,6 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
-# ĐÃ XÓA: passlib.context vì Auth0 đã lo việc xác thực mật khẩu
-
-# =====================================================================
-# HÀM KẾT NỐI HASHICORP VAULT
-# =====================================================================
 def get_jwt_secret_from_vault():
     print("🔒 Đang gõ cửa Két sắt Vault để lấy JWT_SECRET...")
     try:
@@ -41,9 +36,7 @@ def get_jwt_secret_from_vault():
         print("⚠️ Ứng dụng từ chối khởi động vì lý do bảo mật (Thiếu Secret)!")
         sys.exit(1)
 
-# =====================================================================
-# KHỞI TẠO BIẾN MÔI TRƯỜNG & APP
-# =====================================================================
+
 APP_NAME = "user-service"
 
 JWT_SECRET = get_jwt_secret_from_vault()
@@ -67,7 +60,6 @@ REQUEST_LATENCY = Histogram(
     ["method", "endpoint"],
 )
 
-# In-memory DB lưu thông tin người dùng nội bộ
 users = {}
 
 class TokenResponse(BaseModel):
@@ -93,13 +85,11 @@ def health():
 def metrics():
     return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-# =====================================================================
-# LÕI CẤP PHÁT THẺ NỘI BỘ (INTERNAL JWT)
-# =====================================================================
+
 def create_token(user: dict) -> str:
     now = int(time.time())
     payload = {
-        "sub": user["user_id"], # Đã sử dụng UUID không thể đoán mò
+        "sub": user["user_id"],
         "username": user["username"],
         "role": user["role"],
         "iat": now,
