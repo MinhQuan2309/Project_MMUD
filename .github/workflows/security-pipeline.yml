@@ -1,0 +1,36 @@
+name: DevSecOps Security Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  security-scans:
+    name: Automated Security Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: 🔐 Dò tìm Secrets bị rò rỉ (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🕵️ Quét mã nguồn tĩnh (Bandit)
+        run: |
+          pip install bandit
+          bandit -r ./microservices -ll -ii || echo "Đã phát hiện cảnh báo Bandit!"
+
+      - name: 📦 Quét lỗ hổng thư viện (Safety)
+        run: |
+          pip install safety
+          safety check -r ./microservices/billing-service/requirements.txt || echo "Cảnh báo thư viện lỗi thời!"
