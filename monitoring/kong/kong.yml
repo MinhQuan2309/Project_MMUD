@@ -3,7 +3,25 @@ _format_version: "3.0"
 services:
   - name: backend
     url: http://backend:3000
-    routes:
-      - name: api
-        paths:
-          - /api
+
+routes:
+  - name: api
+    service: backend        # <-- nên thêm để route biết trỏ về service nào
+    paths:
+      - /api
+    strip_path: false
+    path_handling: v1
+
+plugins:
+  - name: rate-limiting
+    config:
+      minute: 5
+      policy: local
+  #- name: jwt
+  - name: prometheus
+
+consumers:
+  - username: test-user
+    jwt_secrets:
+      - key: my-key
+        secret: my-secret
