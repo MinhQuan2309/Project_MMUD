@@ -6,15 +6,17 @@ networks:
 
 services:
   waf:
-      image: coreruleset/coraza-caddy:latest
-      container_name: coraza-waf
-      ports:
-        - "8080:8080"
-      command: caddy reverse-proxy --from :8080 --to http://kong-gateway:8000
-      depends_on:
-        - kong
-      networks:
-        - api-security-net
+    image: owasp/modsecurity-crs:nginx
+    container_name: owasp-waf
+    ports:
+      - "8080:8080" # Khách hàng sẽ đi vào cửa này
+    environment:
+      - BACKEND=http://kong-gateway:8000 # WAF lọc mã độc xong sẽ đẩy gói tin sạch cho Kong
+      - PARANOIA=1 # Mức độ nhạy bén của Tường lửa (1 là chuẩn, ít chặn nhầm)
+    depends_on:
+      - kong
+    networks:
+      - api-security-net
 
   # --- QUÂN: KONG GATEWAY ---
   kong:
