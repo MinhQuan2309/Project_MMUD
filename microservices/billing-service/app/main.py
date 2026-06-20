@@ -6,8 +6,8 @@ import sys
 import time
 from typing import Optional
 
-import hvac  # MỚI: Thư viện gọi Vault
-import jwt   # MỚI: Thư viện giải mã JWT
+import hvac
+import jwt 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
@@ -157,7 +157,6 @@ def list_payments(authorization: Optional[str] = Header(default=None)):
     
     token = authorization.removeprefix("Bearer ").strip()
     try:
-        # Giải mã và VERIFY chữ ký đối xứng của hệ thống nội bộ
         payload = jwt.decode(
             token,
             JWT_SECRET,
