@@ -1,0 +1,60 @@
+# docker-compose.phuoc-realistic.yml
+# Mô hình gần thực tế:
+# - Backend KHÔNG public port trực tiếp.
+# - Client nên đi qua API Gateway do Quân cấu hình.
+# - File debug riêng sẽ mở port 8001/8002/8003 nếu cần test trực tiếp.
+
+services:
+  user-service:
+    build: ./microservices/user-service
+    environment:
+      APP_ENV: demo
+      DEMO_USERS_ENABLED: "true"
+      ALLOW_ENV_SECRET_FALLBACK: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: ${JWT_ALG:-HS256}
+      JWT_EXPIRE_SECONDS: ${JWT_EXPIRE_SECONDS:-3600}
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_SECRET_MOUNT: ${VAULT_SECRET_MOUNT:-secret}
+      VAULT_SECRET_PATH: ${VAULT_SECRET_PATH:-project-mmud}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    expose:
+      - "8000"
+    networks:
+      - internal-net
+
+  resource-service:
+    build: ./microservices/resource-service
+    environment:
+      ALLOW_ENV_SECRET_FALLBACK: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: ${JWT_ALG:-HS256}
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_SECRET_MOUNT: ${VAULT_SECRET_MOUNT:-secret}
+      VAULT_SECRET_PATH: ${VAULT_SECRET_PATH:-project-mmud}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    expose:
+      - "8000"
+    depends_on:
+      - user-service
+    networks:
+      - internal-net
+
+  billing-service:
+    build: ./microservices/billing-service
+    environment:
+      ALLOW_ENV_SECRET_FALLBACK: "true"
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      WEBHOOK_TOLERANCE_SECONDS: ${WEBHOOK_TOLERANCE_SECONDS:-300}
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_SECRET_MOUNT: ${VAULT_SECRET_MOUNT:-secret}
+      VAULT_SECRET_PATH: ${VAULT_SECRET_PATH:-project-mmud}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    expose:
+      - "8000"
+    networks:
+      - internal-net
+
+networks:
+  internal-net:
+    driver: bridge

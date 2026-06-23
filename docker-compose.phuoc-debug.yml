@@ -1,0 +1,17 @@
+# docker-compose.phuoc-debug.yml
+# Dùng để test trực tiếp phần Phước khi Gateway chưa route xong.
+# Chạy:
+# docker compose -f docker-compose.phuoc-realistic.yml -f docker-compose.phuoc-debug.yml up -d --build
+
+services:
+  user-service:
+    ports:
+      - "8001:8000"
+
+  resource-service:
+    ports:
+      - "8002:8000"
+
+  billing-service:
+    ports:
+      - "8003:8000"
